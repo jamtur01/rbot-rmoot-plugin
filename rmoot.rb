@@ -10,9 +10,9 @@
 #
 
 class RmootPlugin < Plugin
-     
+
         def initialize
-          super 
+          super
           @running = false
           @mtopic = nil
           @voting = false
@@ -44,7 +44,7 @@ class RmootPlugin < Plugin
               " "
           end
 	end
-        
+
         def meeting(m, params)
 
           case @running
@@ -57,7 +57,7 @@ class RmootPlugin < Plugin
                 when 'stop'
                   m.reply "No meeting running"
                   return
-              end               
+              end
              when true
                case params[:meeting]
                  when 'stop'
@@ -68,7 +68,7 @@ class RmootPlugin < Plugin
                  when 'start'
                    m.reply "There is already a meeting running"
                    return
-               end 
+               end
           end
         end
 
@@ -78,12 +78,12 @@ class RmootPlugin < Plugin
           return unless voting?
 
           return unless m.message.index(/(\+|-)1/)
- 
+
           if m.message =~ /(\+|-)1/
             vote = $1
             voter = m.sourcenick
             record_vote(m, vote, voter)
-          end 
+          end
         end
 
         def set_topic(m, params)
@@ -101,35 +101,15 @@ class RmootPlugin < Plugin
           end
         end
 
-        def log_idea(m, params)
-          unless running?
-             m.reply "A meeting must be started to specify an idea."
-             return
-          end
-
-        end
-
-        def log_action(m, params)
+        def log_item(m, params)
           unless running?
              m.reply "A meeting must be started to specify an action."
              return
           end
 
-        end
-
-        def log_agreement(m, params)
-          unless running?
-             m.reply "A meeting must be started to specify an agreement."
-             return
-          end
-
-        end
-
-        def log_link(m, params)
-          unless running?
-             m.reply "A meeting must be started to specify a link."
-             return
-          end
+          action = params[:action]
+          type = params[:type]
+          item = params[:item]
 
         end
 
@@ -154,7 +134,7 @@ class RmootPlugin < Plugin
                 when 'stop'
                   m.reply "There is no vote running."
                   return
-              end                
+              end
             when true
               case params[:vote]
                 when 'start'
@@ -174,7 +154,7 @@ class RmootPlugin < Plugin
             m.reply "You've already voted on " + @mtopic.to_s % { :vote => @voters[voter] }
             return
           end
- 
+
           if vote == '+'
             choice = 'aye'
           elsif vote == '-'
@@ -183,7 +163,7 @@ class RmootPlugin < Plugin
 
           @voters[voter] = choice
 
-          m.reply "#{voter} voted " + choice + " on topic " + @mtopic.to_s  
+          m.reply "#{voter} voted " + choice + " on topic " + @mtopic.to_s
         end
 
         def voting_results(m)
@@ -208,19 +188,16 @@ class RmootPlugin < Plugin
             m.reply "The vote on " + @mtopic.to_s + " was a tie!"
             return
           end
-          
+
         end
-        
+
         def meeting_conclusion(m)
-   
+
         end
 end
 
 plugin = RmootPlugin.new
 plugin.map 'rmoot :meeting meeting', :requirements => { :meeting => /(start|stop)/ }, :action => 'meeting'
 plugin.map 'rmoot topic *mtopic', :action => 'set_topic'
-plugin.map 'rmoot idea *idea', :action => 'log_idea'
-plugin.map 'rmoot action *actions', :action => 'log_action'
-plugin.map 'rmoot agreed *agreement', :action => 'log_agreement'
-plugin.map 'rmoot link :link', :action => 'log_link'
+plugin.map 'rmoot :action :type *item', :requirements => { :act => /(add|remove)/, :type => /(action|agreement|idea|link)/ }, :action => 'log_items'
 plugin.map 'rmoot :vote vote', :requirements => { :vote => /(start|stop)/ }, :action => 'vote'

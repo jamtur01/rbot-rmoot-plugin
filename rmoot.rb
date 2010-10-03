@@ -36,12 +36,15 @@ class RmootPlugin < Plugin
               "Specify 'start' or 'stop' to start or stop a meeting."
             when 'topic':
               "When a meeting is started specify a meeting topic."
+
             else
               "rMoot: A MootBot style IRC meeting manager. " +
               "Use 'start meeting' or 'stop meeting' to start or stop a meeting. " +
-              "In a meeting, use 'topic topicofmeeting' to set the meeting topic.  " +
+              "In a meeting, use 'topic topic_description' to set the meeting topic.  " +
               "Use 'start' vote or 'stop vote' to start or stop voting. " +
-              " "
+              "Use +1 or -1 to vote for or against a topic." +
+              "Use 'add item' where item can be action, idea, agreement, and link to add items. " +
+              " " 
           end
 	end
 
@@ -199,5 +202,5 @@ end
 plugin = RmootPlugin.new
 plugin.map 'rmoot :meeting meeting', :requirements => { :meeting => /(start|stop)/ }, :action => 'meeting'
 plugin.map 'rmoot topic *mtopic', :action => 'set_topic'
-plugin.map 'rmoot :action :type *item', :requirements => { :act => /(add|remove)/, :type => /(action|agreement|idea|link)/ }, :action => 'log_items'
+plugin.map 'rmoot :action :type *item', :requirements => { :action => /(add|remove)/, :type => /(action|agreement|idea|link)/ }, :action => 'log_items'
 plugin.map 'rmoot :vote vote', :requirements => { :vote => /(start|stop)/ }, :action => 'vote'

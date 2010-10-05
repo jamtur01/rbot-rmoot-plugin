@@ -14,12 +14,13 @@ class RmootPlugin < Plugin
         def initialize
           super
           @running = false
-          @mtopic = nil
+          @meetingname = nil
           @voting = false
+          @votename = nil
 
           @topics  = Hash.new
           @voters = Hash.new
-
+          @conclusion = Hash.new
         end
 
         def running?
@@ -34,44 +35,41 @@ class RmootPlugin < Plugin
 	  case topic
             when 'meeting':
               "Specify 'start' or 'stop' to start or stop a meeting."
-            when 'topic':
-              "When a meeting is started specify a meeting topic."
-
             else
               "rMoot: A MootBot style IRC meeting manager. " +
-              "Use 'start meeting' or 'stop meeting' to start or stop a meeting. " +
-              "In a meeting, use 'topic topic_description' to set the meeting topic.  " +
-              "Use 'start' vote or 'stop vote' to start or stop voting. " +
-              "Use +1 or -1 to vote for or against a topic." +
+              "Use 'start meeting meetingname' and 'stop meeting' to start or stop a meeting. " +
+              "Use 'start vote votename' and 'stop vote' to start or stop voting. " +
+              "Use +1 and -1 to vote for or against a topic." +
               "Use 'add item' where item can be action, idea, agreement, and link to add items. " +
-              " " 
+              " "
           end
 	end
 
-        def meeting(m, params)
+        def start_meeting(m, params)
+
+          @bot.auth.irc_to_botuser(m.source).set_temp_permission('rmoot::meeting', true, m.channel)
 
           case @running
             when false
-              case params[:meeting]
-                when 'start'
-                  @running = true
-                  m.reply "Starting meeting"
-                  return
-                when 'stop'
-                  m.reply "No meeting running"
-                  return
-              end
-             when true
-               case params[:meeting]
-                 when 'stop'
-                   @running = false
-                   m.reply "Stopping the meeting"
-                   meeting_conclusion(m)
-                   return
-                 when 'start'
-                   m.reply "There is already a meeting running"
-                   return
-               end
+              @running = true
+              @meetingname = params[:meetingname].to_s
+              m.reply "Starting meeting " + @meetingname
+              return
+            when true
+              m.reply "There is already a meeting running!"
+              return
+          end
+        end
+
+        def stop_meeting(m, params)
+          case @running
+            when false
+              m.reply "There is no meeting running!"
+              return
+            when true
+              @running = false
+              meeting_conclusion(m)
+              return
           end
         end
 
@@ -89,21 +87,6 @@ class RmootPlugin < Plugin
           end
         end
 
-        def set_topic(m, params)
-          unless running?
-             m.reply "A meeting must be started to specify a topic."
-             return
-          end
-
-          @mtopic = params[:mtopic].to_s
-
-          if @mtopic
-             m.reply "The current topic is: " + @mtopic
-          else
-             m.reply "You need to specify a topic."
-          end
-        end
-
         def log_item(m, params)
           unless running?
              m.reply "A meeting must be started to specify an action."
@@ -116,36 +99,32 @@ class RmootPlugin < Plugin
 
         end
 
-        def vote(m, params)
+        def manage_vote(m, params)
           unless running?
              m.reply "A meeting must be started to use voting."
-             return
-          end
-
-          unless @mtopic
-             m.reply "You must have a topic to use voting."
              return
           end
 
           case @voting
             when false
               case params[:vote]
-                when 'start'
+                when 'start', 'begin'
                   @voting = true
-                  m.reply "A vote for " + @mtopic.to_s + " is now in progress."
+                  @votename = params[:votename].to_s
+                  m.reply "A vote for " + @votename + " is now in progress. Specify +1 to vote aye and -1 to vote nay."
                   return
-                when 'stop'
+                when 'stop', 'end'
                   m.reply "There is no vote running."
                   return
               end
             when true
               case params[:vote]
-                when 'start'
+                when 'start', 'begin'
                   m.reply "A vote is already in progress."
                   return
-                when 'stop'
+                when 'stop', 'end'
                   @voting = false
-                  m.reply "The vote for " + @mtopic.to_s + " is now over."
+                  m.reply "The vote for " + @votename + " is now over."
                   voting_results(m)
                   return
               end
@@ -154,7 +133,7 @@ class RmootPlugin < Plugin
 
         def record_vote(m, vote, voter)
           if @voters.has_key? voter
-            m.reply "You've already voted on " + @mtopic.to_s % { :vote => @voters[voter] }
+            m.reply "You've already voted on " + @mvotename % { :vote => @voters[voter] }
             return
           end
 
@@ -166,7 +145,7 @@ class RmootPlugin < Plugin
 
           @voters[voter] = choice
 
-          m.reply "#{voter} voted " + choice + " on topic " + @mtopic.to_s
+          m.reply "#{voter} voted " + choice + " on topic " + @votename
         end
 
         def voting_results(m)
@@ -182,25 +161,57 @@ class RmootPlugin < Plugin
 
           m.reply "There were #{aye} votes for the affirmative and #{nay} votes for the negative."
           if aye > nay
-            m.reply "The vote on " + @mtopic.to_s + " passed!"
-            return
+            outcome = "The vote on " + @votename + " passed!"
           elsif aye < nay
-            m.reply "The vote on " + @mtopic.to_s + " failed!"
-            return
+            outcome = "The vote on " + @votename + " failed!"
           elsif aye == nay
-            m.reply "The vote on " + @mtopic.to_s + " was a tie!"
-            return
+            outcome = "The vote on " + @votename + " was a tie!"
           end
+
+          @conclusion[@votename] = outcome
+          m.reply "#{outcome}"
 
         end
 
-        def meeting_conclusion(m)
+        def log_items(m, params)
+          unless running?
+             m.reply "A meeting must be started to specify a " + params[:item]
+             return
+          end
 
+          type = params[:type]
+          item = params[:item].to_s
+
+          if params[:action] == 'add' && !@conclusion.has_value?(item)
+            @conclusion[type] = item
+            m.reply "Adding #{type} - #{item}"
+            return
+          elsif params[:action] == 'add' && @conclusion.has_value?(item)
+            m.reply "#{type} - #{item} already exists."
+            return 
+          elsif params[:action] == 'remove' && @conclusion.has_value?(item)
+              @conclusion.delete_if { |k, v| v == item }
+              m.reply "Removing #{type} - #{item} from meeting."
+          else
+              m.reply "No such #{type} - #{item} exists."
+              return
+          end
+        end
+
+        def meeting_conclusion(m)
+          m.reply "Stopping " + @meetingname
+          m.reply "The results of the meeting were: "
+          @conclusion.each do |item, outcome|
+            m.reply item + " - " + outcome
+          end
         end
 end
 
 plugin = RmootPlugin.new
-plugin.map 'rmoot :meeting meeting', :requirements => { :meeting => /(start|stop)/ }, :action => 'meeting'
-plugin.map 'rmoot topic *mtopic', :action => 'set_topic'
-plugin.map 'rmoot :action :type *item', :requirements => { :action => /(add|remove)/, :type => /(action|agreement|idea|link)/ }, :action => 'log_items'
-plugin.map 'rmoot :vote vote', :requirements => { :vote => /(start|stop)/ }, :action => 'vote'
+
+plugin.default_auth( 'meeting', false )
+
+plugin.map 'rmoot start meeting *meetingname', :action => 'start_meeting'
+plugin.map 'rmoot stop meeting', :action => 'stop_meeting', :auth_path => 'meeting'
+plugin.map 'rmoot :action :type *item', :requirements => { :action => /(add|remove)/, :type => /(agreement|action|idea|link)/ }, :action => 'log_items'
+plugin.map 'rmoot :vote vote *votename', :requirements => { :vote => /(start|begin|stop|end)/ }, :action => 'manage_vote', :auth_path => 'meeting'

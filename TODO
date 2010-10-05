@@ -1,8 +1,12 @@
 Rmoot - TODO list
 
-1.  Add auth
-2.  Add ideas, actions and agreements
-3.  Add vote results to list of output
-4.  Add meeting completion method that outputs all items generated in meeting
+1.  Add auth - partial
+  a. Person who issues start meeting is meeting chair - done
+  b. Anyone can add ideas and links - done
+  c. Only the chair can add actions and agreements - PENDING
+  d. Only the chair can start and stop voting - done
+2.  Add ideas, actions and agreements - done
+3.  Add vote results to list of output - add @topic and vote result and roll into output in record_votes method - done
+4.  Add meeting completion method that outputs all items generated in meeting - done
 5.  Archives of past meetings?
 
